@@ -2,6 +2,7 @@ require "HTTParty"
 require "Nokogiri"
 require "optparse"
 require "json"
+require "colorize"
 
 class Scraper
     def scrape_repositories(html)
@@ -85,7 +86,9 @@ class Searcher
             # Some events have no commit assigned
             unless commits.nil?
                 commits.each do |commit|
-                    emails.push(commit["author"]["email"])
+                    if(!commit["author"]["email"][/[<]{0,1}[a-zA-Z0-9._%+-]+@users.noreply.github.com[>]{0,1}/])
+                        emails.push(commit["author"]["email"])
+                    end
                 end
             end
         end
@@ -94,7 +97,7 @@ class Searcher
 
     def search_sensitive_info(commit)
         data = Hash.new
-        data["mails"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}[>]{0,1}/]
+        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}[>]{0,1}/]
         return data
     end
 end
@@ -132,14 +135,48 @@ class Parser
     end
 end
 
+class Printer
+    def print_banner()
+        banner = File.read('banner.txt')
+        puts banner.yellow
+    end
+    
+    def print_result(result)
+        acc_email_header = "Account emails: ".yellow
+        commit_email_header = "Emails found on commits".yellow
+        
+        puts acc_email_header
+        result["account_email"].each{ |email|
+            puts "\t[·] ".yellow + email.red
+        }.first.red
+        
+        puts commit_email_header
+        result["repositories"].each{ |repository|
+            repository["branches"].each{ |branch|
+                branch["commits"].each{ |commit|
+                    if(!commit["info"]["email"].nil?)
+                        puts "\t[·] ".yellow + commit["info"]["email"].red + " found in " + 
+                        "#{repository["id"]}".green + " inside branch " + "#{branch["id"][/\/[a-zA-Z0-9]*$/]}".green +
+                        " and commit " + "#{commit["commit"][/\/[a-zA-Z0-9]*$/]}".green
+                    end
+                }
+            }
+        }
+
+    end
+
+end
+
 class App
     def initialize()
         @req = Requester.new
         @scr = Scraper.new
         @sear = Searcher.new
         @options = Parser.parse(ARGV)
+        @print = Printer.new
     end
     def run 
+        @print.print_banner()
         api_content = @req.get_api_content(@options["username"])
         account_email = @sear.search_api_emails(api_content)
         repositories = Array.new
@@ -167,7 +204,12 @@ class App
                 }
             }
         }
-        File.open(@options["output_file"], "w") { |f| f.write repositories.to_json }
+        result = {
+            "account_email" => account_email,
+            "repositories"  => repositories 
+        }
+        File.open(@options["output_file"], "w") { |f| f.write result.to_json }
+        @print.print_result(result)
     end
 end
 
