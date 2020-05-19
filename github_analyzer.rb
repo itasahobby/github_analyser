@@ -105,7 +105,8 @@ end
 class Parser
     def self.parse(args)
         options = {
-            "output_file" => "github_analysis.json" 
+            "output_file" => "github_analysis.json",
+            "unique" => false
         }
         opts = OptionParser.new{ |opts|
             opts.banner = "Usage: github_analyzer.rb [options]"
@@ -116,6 +117,10 @@ class Parser
 
             opts.on("-oOUTPUT", "--output-file=OUTPUT", "Json file to store the analysis"){ |n |
                 options["output_file"] = n
+            }
+
+            opts.on("-U", "--unique", "Only shows first appearance of each email"){ |n |
+                options["unique"] = true
             }
 
             opts.on("-h", "--help", "Prints this help"){
@@ -185,6 +190,7 @@ class App
             data["id"] = repository
             repositories.push(data)
         }
+        unique_mails = Array.new
         repositories.each{ |repository|
             repository["branches"] = Array.new
             @scr.scrape_branches(@req.get_branches(repository["id"])).each{ |branch|
@@ -198,9 +204,13 @@ class App
                 data["commits"] = Array.new
                 commits.each{ |commit|
                     commit_obj = Hash.new
-                    commit_obj["commit"] = commit
-                    commit_obj["info"] = @sear.search_sensitive_info(@req.get_commit_data(commit))
-                    data["commits"].push commit_obj
+                    info = @sear.search_sensitive_info(@req.get_commit_data(commit))
+                    if(@options["unique"] and !unique_mails.include? info["email"])
+                        commit_obj["commit"] = commit
+                        commit_obj["info"] = info
+                        data["commits"].push commit_obj
+                        unique_mails.push info["email"]
+                    end
                 }
             }
         }
