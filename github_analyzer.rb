@@ -97,7 +97,7 @@ class Searcher
 
     def search_sensitive_info(commit)
         data = Hash.new
-        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}[>]{0,1}/]
+        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@(?!users\.noreply\.github\.com)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})[>]{0,1}/]
         return data
     end
 end
