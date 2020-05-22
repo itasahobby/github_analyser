@@ -86,7 +86,7 @@ end
 class Searcher
     def search_api_emails(content)
         emails = Array.new
-        if content["message"] == "Not Found"
+        if content.is_a? Hash
             raise UserNotFound
         end
         # Iterates through events
