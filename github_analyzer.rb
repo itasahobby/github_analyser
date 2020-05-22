@@ -76,9 +76,19 @@ class Requester
     end
 end
 
+class UserNotFound < StandardError
+    def initialize()
+        msg="The given username doesn't exist".blue
+        super(msg)
+    end
+end
+
 class Searcher
     def search_api_emails(content)
         emails = Array.new
+        if content["message"] == "Not Found"
+            raise UserNotFound
+        end
         # Iterates through events
         content.each do |event|
             payload = event["payload"]
@@ -131,9 +141,8 @@ class Parser
 
         }
         opts.parse(args)
-        if options.empty?  
-            puts opts
-        elsif options["username"].nil? and !options["help"]
+        if options["username"].nil? and !options["help"]
+            puts "There is no help"
             raise OptionParser::MissingArgument
         end
         options
