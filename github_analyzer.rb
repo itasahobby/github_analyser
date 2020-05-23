@@ -121,7 +121,7 @@ class Searcher
 
     def search_sensitive_info(commit)
         data = Hash.new
-        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@(?![users\.noreply\.]{0,1}github\.com)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})[>]{0,1}/]
+        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@(?!users\.noreply\.github\.com)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})[>]{0,1}/]
         return data
     end
 end
@@ -131,7 +131,8 @@ class ArgParser
         options = {
             "output_file" => "github_analysis.json",
             "unique" => false,
-            "forked" => true
+            "forked" => true,
+            "threads" => 1
         }
         opts = OptionParser.new{ |opts|
             opts.banner = "Usage: github_analyzer.rb [-h] [-o ouput_file] [-U] [-F] [-r repository] -u username"
@@ -140,6 +141,10 @@ class ArgParser
                 options["help"] = true
                 puts opts
                 exit
+            }
+
+            opts.on("-tTHREADS","--threadsTHREADS", Integer, "Amount of threads generated"){ |n|
+                options["threads"] = n
             }
 
             opts.on("-oOUTPUT", "--output-file=OUTPUT", "Json file to store the analysis"){ |n |
@@ -211,6 +216,7 @@ class App
         @sear = Searcher.new
         @options = ArgParser.parse(ARGV)
         @print = Printer.new
+        @threads = Array.new
     end
     def run 
         @print.print_banner()
@@ -234,24 +240,31 @@ class App
             @scr.scrape_branches(@req.get_branches(repository["id"])).each{ |branch|
                 data = Hash.new 
                 data["id"] = branch
+                data["commits"] = Array.new
                 commits_url = @scr.scrape_commits_link(@req.get_commits(branch))
                 data["commits_url"] = commits_url
                 repository["branches"].push(data)
                 src = Scraper.new
                 commits = src.scrape_all_commits(@req.get_commits(commits_url))
-                data["commits"] = Array.new
-                commits.each{ |commit|
-                    commit_obj = Hash.new
-                    info = @sear.search_sensitive_info(@req.get_commit_data(commit))
-                    if(@options["unique"] and !unique_mails.include? info["email"])
-                        commit_obj["commit"] = commit
-                        commit_obj["info"] = info
-                        data["commits"].push commit_obj
-                        unique_mails.push info["email"]
+                (1..@options["threads"]).each{ |n|
+                    @threads << Thread.new do 
+                        commit_data = commits.pop()
+                        while commit_data
+                            commit_obj = Hash.new
+                            info = @sear.search_sensitive_info(@req.get_commit_data(commit_data))
+                            if(!@options["unique"] or !unique_mails.include? info["email"])
+                                commit_obj["commit"] = commit_data
+                                commit_obj["info"] = info
+                                data["commits"].push commit_obj
+                                unique_mails.push info["email"]
+                            end
+                            commit_data = commits.pop()
+                        end
                     end
                 }
             }
         }
+        @threads.each { |thr| thr.join }
         result = {
             "account_email" => account_email,
             "repositories"  => repositories 
