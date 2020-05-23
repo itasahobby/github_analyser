@@ -4,6 +4,13 @@ require "optparse"
 require "json"
 require "colorize"
 
+class RepoNotFound < StandardError
+    def initialize()
+        msg="The given repository doesn't exist".blue
+        super(msg)
+    end
+end
+
 class Scraper
     def scrape_repositories(html,deep)
         repositories = Array.new
@@ -21,6 +28,9 @@ class Scraper
         branches = Array.new
         parser = Nokogiri::HTML(html)
         parser.xpath("//a[@class='branch-name css-truncate-target v-align-baseline width-fit mr-2 Details-content--shown']/@href").map{|branch| branches.push(branch.value)}
+        if branches.empty?
+            raise RepoNotFound
+        end
         return branches
     end
 
@@ -142,6 +152,10 @@ class ArgParser
                 options["forked"] = false
             }
 
+            opts.on("-rREPO","--repositoryREPO","Analyze only the given repository"){ |n|
+                options["repository"] = n
+            }
+
             opts.on("-h", "--help", "Prints this help"){
                 options["help"] = true
                 puts opts
@@ -203,11 +217,17 @@ class App
         api_content = @req.get_api_content(@options["username"])
         account_email = @sear.search_api_emails(api_content)
         repositories = Array.new
-        @scr.scrape_repositories(@req.get_repositories(@options["username"]), @options["forked"]).map{ |repository|
-            data = Hash.new
-            data["id"] = repository
-            repositories.push(data)
-        }
+        if @options["repository"]
+            repositories.push({
+                "id" => "/#{@options["username"]}/#{@options["repository"]}"
+            })
+        else
+            @scr.scrape_repositories(@req.get_repositories(@options["username"]), @options["forked"]).map{ |repository|
+                data = Hash.new
+                data["id"] = repository
+                repositories.push(data)
+            }
+        end
         unique_mails = Array.new
         repositories.each{ |repository|
             repository["branches"] = Array.new
