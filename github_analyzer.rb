@@ -134,10 +134,12 @@ class ArgParser
             "forked" => true
         }
         opts = OptionParser.new{ |opts|
-            opts.banner = "Usage: github_analyzer.rb [options]"
+            opts.banner = "Usage: github_analyzer.rb [-h] [-o ouput_file] [-U] [-F] [-r repository] -u username"
 
-            opts.on("-uUSERNAME", "--username=USERNAME", "Github username to analyze"){ |n |
-                options["username"] = n
+            opts.on("-h", "--help", "Prints this help"){
+                options["help"] = true
+                puts opts
+                exit
             }
 
             opts.on("-oOUTPUT", "--output-file=OUTPUT", "Json file to store the analysis"){ |n |
@@ -156,10 +158,8 @@ class ArgParser
                 options["repository"] = n
             }
 
-            opts.on("-h", "--help", "Prints this help"){
-                options["help"] = true
-                puts opts
-                exit
+            opts.on("-uUSERNAME", "--username=USERNAME", "Github username to analyze"){ |n |
+                options["username"] = n
             }
 
         }
