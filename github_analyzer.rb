@@ -5,11 +5,15 @@ require "json"
 require "colorize"
 
 class Scraper
-    def scrape_repositories(html)
+    def scrape_repositories(html,deep)
         repositories = Array.new
         parser = Nokogiri::HTML(html)
         # añadir que no incluya githubs forkeds
-        parser.xpath("//ul[@data-filterable-for='your-repos-filter']/li/div/div/h3/a/@href").map{|repository| repositories.push(repository.value)}
+        if deep
+            parser.xpath("//ul[@data-filterable-for='your-repos-filter']/li/div/div/h3/a/@href").map{|repository| repositories.push(repository.value)}
+        else 
+            parser.xpath("//ul[@data-filterable-for='your-repos-filter']/li/div/div[@class='d-inline-block mb-1'][not(./span[contains(.,'Forked from')])]//@href").map{|repository| repositories.push(repository.value)}
+        end
         return repositories
     end
 
@@ -107,16 +111,17 @@ class Searcher
 
     def search_sensitive_info(commit)
         data = Hash.new
-        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@(?!users\.noreply\.github\.com)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})[>]{0,1}/]
+        data["email"] = commit[/[<]{0,1}[a-zA-Z0-9._%+-]+@(?![users\.noreply\.]{0,1}github\.com)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})[>]{0,1}/]
         return data
     end
 end
 
-class Parser
+class ArgParser
     def self.parse(args)
         options = {
             "output_file" => "github_analysis.json",
-            "unique" => false
+            "unique" => false,
+            "forked" => true
         }
         opts = OptionParser.new{ |opts|
             opts.banner = "Usage: github_analyzer.rb [options]"
@@ -131,6 +136,10 @@ class Parser
 
             opts.on("-U", "--unique", "Only shows first appearance of each email"){ |n |
                 options["unique"] = true
+            }
+
+            opts.on("-F","--non-forked","If used only analyzes non forked repositories"){ |n|
+                options["forked"] = false
             }
 
             opts.on("-h", "--help", "Prints this help"){
@@ -186,7 +195,7 @@ class App
         @req = Requester.new
         @scr = Scraper.new
         @sear = Searcher.new
-        @options = Parser.parse(ARGV)
+        @options = ArgParser.parse(ARGV)
         @print = Printer.new
     end
     def run 
@@ -194,7 +203,7 @@ class App
         api_content = @req.get_api_content(@options["username"])
         account_email = @sear.search_api_emails(api_content)
         repositories = Array.new
-        @scr.scrape_repositories(@req.get_repositories(@options["username"])).map{ |repository|
+        @scr.scrape_repositories(@req.get_repositories(@options["username"]), @options["forked"]).map{ |repository|
             data = Hash.new
             data["id"] = repository
             repositories.push(data)
