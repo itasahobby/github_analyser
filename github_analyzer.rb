@@ -135,7 +135,7 @@ class ArgParser
             "threads" => 1
         }
         opts = OptionParser.new{ |opts|
-            opts.banner = "Usage: github_analyzer.rb [-h] [-o ouput_file] [-U] [-F] [-r repository] -u username"
+            opts.banner = "Usage: github_analyzer.rb [-h] [-t threads] [-o ouput_file] [-U] [-F] [-r repository] -u username"
 
             opts.on("-h", "--help", "Prints this help"){
                 options["help"] = true
